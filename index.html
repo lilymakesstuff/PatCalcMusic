@@ -25,13 +25,16 @@ let osc = [];
 const waveCount = 3;
 const waves = [];
 
-function setup() {
-  createCanvas(800, 300).parent('canvasContainer');
+window.setup = function() {
+  const canvas = createCanvas(800, 300);
+  canvas.parent('canvasContainer');
+  canvas.style('border', '1px solid #444');
+  background(0);
   textSize(16);
   fill(255);
   noLoop();
   buildControls();
-}
+};
 
 function buildControls() {
   const container = document.getElementById('waveControls');
@@ -39,8 +42,8 @@ function buildControls() {
   for (let i = 0; i < waveCount; i++) {
     const div = document.createElement('div');
     div.innerHTML = `
-      Wave ${i+1}:
-      <input type="text" id="func${i}" value="sin(${i+1}*t)" size="15">
+      Wave ${i + 1}:
+      <input type="text" id="func${i}" value="sin(${i + 1}*t)" size="15">
       <select id="mode${i}">
         <option value="original">Original</option>
         <option value="derivative">Derivative</option>
@@ -48,7 +51,7 @@ function buildControls() {
       </select>
     `;
     container.appendChild(div);
-    waves[i] = { func: `sin(${i+1}*t)`, mode: 'original' };
+    waves[i] = { func: `sin(${i + 1}*t)`, mode: 'original' };
   }
 }
 
@@ -89,6 +92,7 @@ async function playAll() {
 
   background(0);
   stroke(0, 255, 0);
+  strokeWeight(2);
   noFill();
   beginShape();
   for (let i = 0; i < normalized.length; i++) {
@@ -104,7 +108,7 @@ async function playAll() {
   const duration = 2;
 
   for (let w = 0; w < waveCount; w++) {
-    const o = new Tone.Oscillator(440, 'sine').toDestination();
+    const o = new Tone.Oscillator({ frequency: 440, type: 'sine' }).toDestination();
     o.volume.value = -12;
     o.start(now);
     o.stop(now + duration);
@@ -119,23 +123,14 @@ async function playAll() {
 
 function evaluateFunction(funcText, t) {
   try {
-    const sin = Math.sin;
-    const cos = Math.cos;
-    const tan = Math.tan;
-    const sqrt = Math.sqrt;
-    const abs = Math.abs;
-    const log = Math.log;
-    const exp = Math.exp;
-    const PI = Math.PI;
-    const E = Math.E;
-
-    const func = funcText
+    const expr = funcText
       .replace(/\^/g, '**')
-      .replace(/\bt\b/g, `(${t})`)
-      .replace(/\bpi\b/gi, 'PI');
+      .replace(/\bpi\b/gi, 'Math.PI')
+      .replace(/\be\b/gi, 'Math.E');
 
-    return eval(func) || 0;
-  } catch {
+    return Function('t', 'with(Math){ return ' + expr + '; }')(t);
+  } catch (error) {
+    console.error('Function parse error:', error, funcText);
     return 0;
   }
 }
