@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Lilys music stuff for patrick using calculus</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.9.77/Tone.min.js"></script>
-<style>
-  body { font-family: sans-serif; background: #111; color: #eee; padding: 10px; }
-  input, select { margin: 5px; }
-</style>
+  <meta charset="UTF-8">
+  <title>Lilys music stuff for patrick using calculus</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.9.77/Tone.min.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #111; color: #eee; padding: 10px; }
+    input, select { margin: 5px; }
+    canvas { display: block; margin-top: 10px; border: 1px solid #444; }
+  </style>
 </head>
 <body>
 
@@ -18,23 +18,18 @@
 <div id="waveControls"></div>
 <button onclick="playAll()">Play + Visualize</button>
 
-<div id="canvasContainer"></div>
+<canvas id="plotCanvas" width="800" height="300"></canvas>
 
 <script>
-let osc = [];
 const waveCount = 3;
 const waves = [];
+const canvas = document.getElementById('plotCanvas');
+const ctx = canvas.getContext('2d');
 
-window.setup = function() {
-  const canvas = createCanvas(800, 300);
-  canvas.parent('canvasContainer');
-  canvas.style('border', '1px solid #444');
-  background(0);
-  textSize(16);
-  fill(255);
-  noLoop();
+window.addEventListener('load', () => {
   buildControls();
-};
+  drawMessage('Enter functions and click Play + Visualize');
+});
 
 function buildControls() {
   const container = document.getElementById('waveControls');
@@ -53,6 +48,14 @@ function buildControls() {
     container.appendChild(div);
     waves[i] = { func: `sin(${i + 1}*t)`, mode: 'original' };
   }
+}
+
+function drawMessage(text) {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#eee';
+  ctx.font = '16px sans-serif';
+  ctx.fillText(text, 10, 30);
 }
 
 async function playAll() {
@@ -90,34 +93,38 @@ async function playAll() {
   const maxVal = Math.max(...data.map(Math.abs), 1);
   const normalized = data.map(v => v / maxVal);
 
-  background(0);
-  stroke(0, 255, 0);
-  strokeWeight(2);
-  noFill();
-  beginShape();
-  for (let i = 0; i < normalized.length; i++) {
-    const y = map(normalized[i], -1, 1, height - 20, 20);
-    vertex(map(i, 0, normalized.length, 0, width), y);
-  }
-  endShape();
+  drawGraph(normalized);
+  playTone(normalized);
+}
 
-  osc.forEach(o => o.dispose());
-  osc = [];
+function drawGraph(normalized) {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  ctx.strokeStyle = '#0f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  normalized.forEach((value, i) => {
+    const x = (i / (normalized.length - 1)) * canvas.width;
+    const y = ((1 - value) / 2) * (canvas.height - 40) + 20;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function playTone(normalized) {
   const now = Tone.now();
   const duration = 2;
 
-  for (let w = 0; w < waveCount; w++) {
-    const o = new Tone.Oscillator({ frequency: 440, type: 'sine' }).toDestination();
-    o.volume.value = -12;
-    o.start(now);
-    o.stop(now + duration);
-    osc.push(o);
-  }
+  const osc = new Tone.Oscillator(440, 'sine').toDestination();
+  osc.volume.value = -12;
+  osc.start(now);
+  osc.stop(now + duration);
 
   normalized.forEach((v, i) => {
-    const freq = map(v, -1, 1, 220, 880);
-    osc.forEach(o => o.frequency.setValueAtTime(freq, now + (i / normalized.length) * duration));
+    const freq = 220 + (v + 1) * 330;
+    osc.frequency.setValueAtTime(freq, now + (i / normalized.length) * duration);
   });
 }
 
@@ -127,8 +134,7 @@ function evaluateFunction(funcText, t) {
       .replace(/\^/g, '**')
       .replace(/\bpi\b/gi, 'Math.PI')
       .replace(/\be\b/gi, 'Math.E');
-
-    return Function('t', 'with(Math){ return ' + expr + '; }')(t);
+    return Function('t', 'with (Math) { return ' + expr + '; }')(t);
   } catch (error) {
     console.error('Function parse error:', error, funcText);
     return 0;
