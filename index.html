@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Lilys music stuff for patrick using calculus</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.9.77/Tone.min.js"></script>
-  <style>
-    body { font-family: sans-serif; background: #111; color: #eee; padding: 10px; }
-    input, select { margin: 5px; }
-    canvas { display: block; margin-top: 10px; border: 1px solid #444; }
-  </style>
+<meta charset="UTF-8">
+<title>Lilys music stuff for patrick using calculus</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.9.77/Tone.min.js"></script>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; padding: 10px; }
+  input, select { margin: 5px; }
+</style>
 </head>
 <body>
 
@@ -18,28 +18,26 @@
 <div id="waveControls"></div>
 <button onclick="playAll()">Play + Visualize</button>
 
-<canvas id="plotCanvas" width="800" height="300"></canvas>
+<div id="canvasContainer"></div>
 
 <script>
-const waveCount = 3;
-const waves = [];
-const canvas = document.getElementById('plotCanvas');
-const ctx = canvas.getContext('2d');
-let audioEnabled = false;
+let osc = [];
+let waveCount = 3;
+let waves = [];
 
-window.addEventListener('load', () => {
-  buildControls();
-  drawMessage('Enter functions and click Play + Visualize');
-});
+function setup() {
+  let canvas = createCanvas(800, 300);
+  canvas.parent('canvasContainer');
+  textSize(16);
+  fill(255);
 
-function buildControls() {
-  const container = document.getElementById('waveControls');
-  container.innerHTML = '';
+  // initialize 3 waves
+  let container = document.getElementById('waveControls');
   for (let i = 0; i < waveCount; i++) {
-    const div = document.createElement('div');
+    let div = document.createElement('div');
     div.innerHTML = `
-      Wave ${i + 1}:
-      <input type="text" id="func${i}" value="sin(${i + 1}*t)" size="15">
+      Wave ${i+1}: 
+      <input type="text" id="func${i}" value="sin(${i+1}*t)" size="15">
       <select id="mode${i}">
         <option value="original">Original</option>
         <option value="derivative">Derivative</option>
@@ -47,139 +45,83 @@ function buildControls() {
       </select>
     `;
     container.appendChild(div);
-    waves[i] = { func: `sin(${i + 1}*t)`, mode: 'original' };
+    waves.push({func: `sin(${i+1}*t)`, mode: 'original'});
+    osc.push(new Tone.Oscillator(440, 'sine').toDestination());
   }
-}
-
-function drawMessage(text) {
-  ctx.fillStyle = '#111';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#eee';
-  ctx.font = '16px sans-serif';
-  ctx.fillText(text, 10, 30);
 }
 
 async function playAll() {
-  audioEnabled = false;
-
-  if (window.Tone && Tone.start) {
-    try {
-      await Tone.start();
-      await Tone.context.resume();
-      console.log('Tone started:', Tone.context.state);
-      audioEnabled = true;
-    } catch (err) {
-      console.error('Tone.start failed', err);
-      drawMessage('Audio start failed');
-    }
-  }
-
-  for (let i = 0; i < waveCount; i++) {
+  await Tone.start();
+  // update waves from inputs
+  for (let i=0;i<waveCount;i++){
     waves[i].func = document.getElementById(`func${i}`).value;
     waves[i].mode = document.getElementById(`mode${i}`).value;
   }
 
-  const dt = 0.02;
-  const data = [];
-  const prevRaw = Array(waveCount).fill(0);
-  const integrals = Array(waveCount).fill(0);
-  let t = 0;
+  let t=0, dt=0.02;
+  let data = [];
+  let lastVals = Array(waveCount).fill(0);
 
-  for (let i = 0; i < 400; i++) {
+  for (let i=0; i<400; i++){
     let sum = 0;
-    for (let w = 0; w < waveCount; w++) {
-      const raw = evaluateFunction(waves[w].func, t);
-      let val = raw;
-      if (waves[w].mode === 'derivative') {
-        val = (raw - prevRaw[w]) / dt;
-      } else if (waves[w].mode === 'integral') {
-        integrals[w] += raw * dt;
-        val = integrals[w];
-      }
-      prevRaw[w] = raw;
+    for (let w=0; w<waveCount; w++){
+      let val = evaluateFunction(waves[w].func, t);
+      if (waves[w].mode === "derivative") val = (val - lastVals[w])/dt;
+      if (waves[w].mode === "integral") val = lastVals[w] + val*dt;
+      lastVals[w] = val;
       sum += val;
     }
     data.push(sum);
     t += dt;
   }
 
-  const maxVal = Math.max(...data.map(Math.abs), 1);
-  const normalized = data.map(v => v / maxVal);
+  // Normalize data
+  let maxVal = Math.max(...data.map(Math.abs));
+  if(maxVal===0) maxVal=1;
+  data = data.map(v=>v/maxVal);
 
-  drawGraph(normalized);
-
-  if (audioEnabled) {
-    playTone(normalized);
+  // Draw waveform
+  background(0);
+  stroke(0,255,0);
+  noFill();
+  beginShape();
+  for (let i=0;i<data.length;i++){
+    let y = map(data[i], -1, 1, height-20, 20);
+    vertex(map(i,0,data.length,0,width), y);
   }
+  endShape();
+
+  // Play waveform using Tone.Sequence
+  let now = Tone.now();
+  let duration = 2;
+  let stepTime = duration / data.length;
+
+  osc.forEach(o=>o.start());
+
+  let seq = new Tone.Sequence((time, index)=>{
+    let val = data[index];
+    let freq = map(val, -1, 1, 220, 880);
+    osc.forEach(o=>{
+      o.frequency.setValueAtTime(freq, time);
+    });
+  }, Array.from(data.keys()), stepTime);
+
+  seq.start(now);
+  Tone.Transport.start();
+  // Stop after duration
+  setTimeout(()=>{
+    seq.stop();
+    osc.forEach(o=>o.stop());
+    Tone.Transport.stop();
+  }, duration*1000);
 }
 
-function drawGraph(normalized) {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.strokeStyle = '#0f0';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  normalized.forEach((value, i) => {
-    const x = (i / (normalized.length - 1)) * canvas.width;
-    const y = ((1 - value) / 2) * (canvas.height - 40) + 20;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-}
-
-async function playTone(normalized) {
-  await Tone.start();
-  if (Tone.context.state !== 'running') {
-    await Tone.context.resume();
-  }
-
-  Tone.Destination.volume.value = -6;
-
-  const now = Tone.now();
-  const duration = 2;
-  const osc = new Tone.Oscillator(440, 'sine').connect(Tone.Destination);
-  osc.volume.value = 0;
-  osc.start(now);
-
-  normalized.forEach((v, i) => {
-    const freq = 220 + (v + 1) * 330;
-    osc.frequency.setValueAtTime(freq, now + (i / normalized.length) * duration);
-  });
-
-  osc.stop(now + duration);
-  setTimeout(() => osc.dispose(), (duration + 0.1) * 1000);
-}
-
-function evaluateFunction(funcText, t) {
-  try {
-    const expr = funcText
-      .replace(/\^/g, '**')
-      .replace(/\bpi\b/gi, 'Math.PI')
-      .replace(/\be\b/gi, 'Math.E');
-
-    return Function(
-      't,sin,cos,tan,asin,acos,atan,sqrt,abs,log,exp,pow',
-      'return ' + expr + ';'
-    )(
-      t,
-      Math.sin,
-      Math.cos,
-      Math.tan,
-      Math.asin,
-      Math.acos,
-      Math.atan,
-      Math.sqrt,
-      Math.abs,
-      Math.log,
-      Math.exp,
-      Math.pow
-    );
-  } catch (error) {
-    console.error('parse error', error, funcText);
-    return 0;
-  }
+// parser
+function evaluateFunction(funcText, t){
+  try{
+    let func = funcText.replace(/t/g, `(${t})`);
+    return eval(func);
+  }catch(e){ return 0; }
 }
 </script>
 
