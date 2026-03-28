@@ -59,7 +59,20 @@ function drawMessage(text) {
 }
 
 async function playAll() {
-  await Tone.start();
+  let audioEnabled = false;
+
+  if (window.Tone && Tone.start) {
+    try {
+      await Tone.start();
+      audioEnabled = true;
+    } catch (err) {
+      console.error('Tone.start failed', err);
+      drawMessage('Audio start failed');
+    }
+  } else {
+    console.error('Tone.js not loaded');
+    drawMessage('Tone.js not loaded');
+  }
 
   for (let i = 0; i < waveCount; i++) {
     waves[i].func = document.getElementById(`func${i}`).value;
@@ -94,7 +107,10 @@ async function playAll() {
   const normalized = data.map(v => v / maxVal);
 
   drawGraph(normalized);
-  playTone(normalized);
+
+  if (audioEnabled) {
+    playTone(normalized);
+  }
 }
 
 function drawGraph(normalized) {
@@ -134,9 +150,26 @@ function evaluateFunction(funcText, t) {
       .replace(/\^/g, '**')
       .replace(/\bpi\b/gi, 'Math.PI')
       .replace(/\be\b/gi, 'Math.E');
-    return Function('t', 'with (Math) { return ' + expr + '; }')(t);
+
+    return Function(
+      't,sin,cos,tan,asin,acos,atan,sqrt,abs,log,exp,pow',
+      'return ' + expr + ';'
+    )(
+      t,
+      Math.sin,
+      Math.cos,
+      Math.tan,
+      Math.asin,
+      Math.acos,
+      Math.atan,
+      Math.sqrt,
+      Math.abs,
+      Math.log,
+      Math.exp,
+      Math.pow
+    );
   } catch (error) {
-    console.error('Function parse error:', error, funcText);
+    console.error('parse error', error, funcText);
     return 0;
   }
 }
