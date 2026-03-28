@@ -50,7 +50,8 @@ function setup() {
   }
 }
 
-function playAll() {
+async function playAll() {
+  await Tone.start();
   // update waves from inputs
   for (let i=0;i<waveCount;i++){
     waves[i].func = document.getElementById(`func${i}`).value;
