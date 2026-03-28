@@ -112,9 +112,24 @@ async function playAll() {
 
 function evaluateFunction(funcText, t) {
   try {
+    const sin = Math.sin;
+    const cos = Math.cos;
+    const tan = Math.tan;
+    const asin = Math.asin;
+    const acos = Math.acos;
+    const atan = Math.atan;
+    const sqrt = Math.sqrt;
+    const abs = Math.abs;
+    const log = Math.log;
+    const exp = Math.exp;
+    const PI = Math.PI;
+    const E = Math.E;
+
     let func = funcText
       .replace(/\^/g, '**')
-      .replace(/\bt\b/g, `(${t})`);
+      .replace(/\bt\b/g, `(${t})`)
+      .replace(/\bpi\b/gi, 'PI');
+
     return eval(func);
   } catch (e) {
     return 0;
