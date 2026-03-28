@@ -25,6 +25,7 @@ const waveCount = 3;
 const waves = [];
 const canvas = document.getElementById('plotCanvas');
 const ctx = canvas.getContext('2d');
+let audioEnabled = false;
 
 window.addEventListener('load', () => {
   buildControls();
@@ -59,19 +60,18 @@ function drawMessage(text) {
 }
 
 async function playAll() {
-  let audioEnabled = false;
+  audioEnabled = false;
 
   if (window.Tone && Tone.start) {
     try {
       await Tone.start();
+      await Tone.context.resume();
+      console.log('Tone started:', Tone.context.state);
       audioEnabled = true;
     } catch (err) {
       console.error('Tone.start failed', err);
       drawMessage('Audio start failed');
     }
-  } else {
-    console.error('Tone.js not loaded');
-    drawMessage('Tone.js not loaded');
   }
 
   for (let i = 0; i < waveCount; i++) {
@@ -129,19 +129,22 @@ function drawGraph(normalized) {
   ctx.stroke();
 }
 
-function playTone(normalized) {
+async function playTone(normalized) {
+  await Tone.start();
+  await Tone.context.resume();
+
   const now = Tone.now();
   const duration = 2;
-
-  const osc = new Tone.Oscillator(440, 'sine').toDestination();
+  const osc = new Tone.Oscillator({ frequency: 440, type: 'sine' }).toDestination();
   osc.volume.value = -12;
   osc.start(now);
-  osc.stop(now + duration);
 
   normalized.forEach((v, i) => {
     const freq = 220 + (v + 1) * 330;
     osc.frequency.setValueAtTime(freq, now + (i / normalized.length) * duration);
   });
+
+  osc.stop(now + duration);
 }
 
 function evaluateFunction(funcText, t) {
