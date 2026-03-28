@@ -31,12 +31,11 @@ function setup() {
   textSize(16);
   fill(255);
 
-  // initialize 3 waves
   let container = document.getElementById('waveControls');
   for (let i = 0; i < waveCount; i++) {
     let div = document.createElement('div');
     div.innerHTML = `
-      Wave ${i+1}: 
+      Wave ${i+1}:
       <input type="text" id="func${i}" value="sin(${i+1}*t)" size="15">
       <select id="mode${i}">
         <option value="original">Original</option>
@@ -52,67 +51,74 @@ function setup() {
 
 async function playAll() {
   await Tone.start();
-  // update waves from inputs
-  for (let i=0;i<waveCount;i++){
+
+  for (let i = 0; i < waveCount; i++) {
     waves[i].func = document.getElementById(`func${i}`).value;
     waves[i].mode = document.getElementById(`mode${i}`).value;
   }
 
-  let t=0, dt=0.02;
+  let t = 0, dt = 0.02;
   let data = [];
-  let lastVals = Array(waveCount).fill(0);
+  let prevRaw = Array(waveCount).fill(0);
+  let integrals = Array(waveCount).fill(0);
 
-  for (let i=0; i<400; i++){
+  for (let i = 0; i < 400; i++) {
     let sum = 0;
-    for (let w=0; w<waveCount; w++){
-      let val = evaluateFunction(waves[w].func, t);
-      if (waves[w].mode === "derivative") val = (val - lastVals[w])/dt;
-      if (waves[w].mode === "integral") val = lastVals[w] + val*dt;
-      lastVals[w] = val;
+    for (let w = 0; w < waveCount; w++) {
+      let raw = evaluateFunction(waves[w].func, t);
+      let val = raw;
+      if (waves[w].mode === 'derivative') {
+        val = (raw - prevRaw[w]) / dt;
+      } else if (waves[w].mode === 'integral') {
+        integrals[w] += raw * dt;
+        val = integrals[w];
+      }
+      prevRaw[w] = raw;
       sum += val;
     }
     data.push(sum);
     t += dt;
   }
 
-  // Normalize data
   let maxVal = Math.max(...data.map(Math.abs));
-  if(maxVal===0) maxVal=1;
-  data = data.map(v=>v/maxVal);
+  if (maxVal === 0) maxVal = 1;
+  data = data.map(v => v / maxVal);
 
-  // Draw waveform
   background(0);
-  stroke(0,255,0);
+  stroke(0, 255, 0);
   noFill();
   beginShape();
-  for (let i=0;i<data.length;i++){
-    let y = map(data[i], -1, 1, height-20, 20);
-    vertex(map(i,0,data.length,0,width), y);
+  for (let i = 0; i < data.length; i++) {
+    let y = map(data[i], -1, 1, height - 20, 20);
+    vertex(map(i, 0, data.length, 0, width), y);
   }
   endShape();
 
-  // Play sound
   let now = Tone.now();
   let duration = 2;
-  for (let w=0; w<waveCount; w++){
-    osc[w].start();
+  for (let w = 0; w < waveCount; w++) {
+    osc[w].start(now);
     osc[w].volume.value = -12;
-    osc[w].stop(now+duration);
+    osc[w].stop(now + duration);
   }
-  data.forEach((v,i)=>{
+
+  data.forEach((v, i) => {
     let freq = map(v, -1, 1, 220, 880);
-    osc.forEach(o=>{
-      o.frequency.setValueAtTime(freq, now+(i/data.length)*duration);
+    osc.forEach(o => {
+      o.frequency.setValueAtTime(freq, now + (i / data.length) * duration);
     });
   });
 }
 
-// parser
-function evaluateFunction(funcText, t){
-  try{
-    let func = funcText.replace(/t/g, `(${t})`);
+function evaluateFunction(funcText, t) {
+  try {
+    let func = funcText
+      .replace(/\^/g, '**')
+      .replace(/\bt\b/g, `(${t})`);
     return eval(func);
-  }catch(e){ return 0; }
+  } catch (e) {
+    return 0;
+  }
 }
 </script>
 
