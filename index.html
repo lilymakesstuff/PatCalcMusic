@@ -131,12 +131,16 @@ function drawGraph(normalized) {
 
 async function playTone(normalized) {
   await Tone.start();
-  await Tone.context.resume();
+  if (Tone.context.state !== 'running') {
+    await Tone.context.resume();
+  }
+
+  Tone.Destination.volume.value = -6;
 
   const now = Tone.now();
   const duration = 2;
-  const osc = new Tone.Oscillator({ frequency: 440, type: 'sine' }).toDestination();
-  osc.volume.value = -12;
+  const osc = new Tone.Oscillator(440, 'sine').connect(Tone.Destination);
+  osc.volume.value = 0;
   osc.start(now);
 
   normalized.forEach((v, i) => {
@@ -145,6 +149,7 @@ async function playTone(normalized) {
   });
 
   osc.stop(now + duration);
+  setTimeout(() => osc.dispose(), (duration + 0.1) * 1000);
 }
 
 function evaluateFunction(funcText, t) {
