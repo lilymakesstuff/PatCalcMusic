@@ -91,29 +91,20 @@ async function playAll() {
   }
   endShape();
 
-  // Play waveform using Tone.Sequence
+  // Play sound
   let now = Tone.now();
   let duration = 2;
-  let stepTime = duration / data.length;
-
-  osc.forEach(o=>o.start());
-
-  let seq = new Tone.Sequence((time, index)=>{
-    let val = data[index];
-    let freq = map(val, -1, 1, 220, 880);
+  for (let w=0; w<waveCount; w++){
+    osc[w].start();
+    osc[w].volume.value = -12;
+    osc[w].stop(now+duration);
+  }
+  data.forEach((v,i)=>{
+    let freq = map(v, -1, 1, 220, 880);
     osc.forEach(o=>{
-      o.frequency.setValueAtTime(freq, time);
+      o.frequency.setValueAtTime(freq, now+(i/data.length)*duration);
     });
-  }, Array.from(data.keys()), stepTime);
-
-  seq.start(now);
-  Tone.Transport.start();
-  // Stop after duration
-  setTimeout(()=>{
-    seq.stop();
-    osc.forEach(o=>o.stop());
-    Tone.Transport.stop();
-  }, duration*1000);
+  });
 }
 
 // parser
@@ -127,3 +118,5 @@ function evaluateFunction(funcText, t){
 
 </body>
 </html>
+
+fix this so it plays the audio
