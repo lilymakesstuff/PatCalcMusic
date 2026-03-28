@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lilys music stuff for patrick using calculus</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.9.77/Tone.min.js"></script>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; padding: 10px; }
+  input, select { margin: 5px; }
+</style>
+</head>
+<body>
+
+<h2>Lilys music stuff for patrick using calculus!!!</h2>
+<p>Enter up to 3 functions of t (e.g., sin(t), 0.5*t, t^2). Each wave can be Original / Derivative / Integral.</p>
+
+<div id="waveControls"></div>
+<button onclick="playAll()">Play + Visualize</button>
+
+<div id="canvasContainer"></div>
+
+<script>
+let osc = [];
+let waveCount = 3;
+let waves = [];
+
+function setup() {
+  let canvas = createCanvas(800, 300);
+  canvas.parent('canvasContainer');
+  textSize(16);
+  fill(255);
+
+  // initialize 3 waves
+  let container = document.getElementById('waveControls');
+  for (let i = 0; i < waveCount; i++) {
+    let div = document.createElement('div');
+    div.innerHTML = `
+      Wave ${i+1}: 
+      <input type="text" id="func${i}" value="sin(${i+1}*t)" size="15">
+      <select id="mode${i}">
+        <option value="original">Original</option>
+        <option value="derivative">Derivative</option>
+        <option value="integral">Integral</option>
+      </select>
+    `;
+    container.appendChild(div);
+    waves.push({func: `sin(${i+1}*t)`, mode: 'original'});
+    osc.push(new Tone.Oscillator(440, 'sine').toDestination());
+  }
+}
+
+function playAll() {
+  // update waves from inputs
+  for (let i=0;i<waveCount;i++){
+    waves[i].func = document.getElementById(`func${i}`).value;
+    waves[i].mode = document.getElementById(`mode${i}`).value;
+  }
+
+  let t=0, dt=0.02;
+  let data = [];
+  let lastVals = Array(waveCount).fill(0);
+
+  for (let i=0; i<400; i++){
+    let sum = 0;
+    for (let w=0; w<waveCount; w++){
+      let val = evaluateFunction(waves[w].func, t);
+      if (waves[w].mode === "derivative") val = (val - lastVals[w])/dt;
+      if (waves[w].mode === "integral") val = lastVals[w] + val*dt;
+      lastVals[w] = val;
+      sum += val;
+    }
+    data.push(sum);
+    t += dt;
+  }
+
+  // Normalize data
+  let maxVal = Math.max(...data.map(Math.abs));
+  if(maxVal===0) maxVal=1;
+  data = data.map(v=>v/maxVal);
+
+  // Draw waveform
+  background(0);
+  stroke(0,255,0);
+  noFill();
+  beginShape();
+  for (let i=0;i<data.length;i++){
+    let y = map(data[i], -1, 1, height-20, 20);
+    vertex(map(i,0,data.length,0,width), y);
+  }
+  endShape();
+
+  // Play sound
+  let now = Tone.now();
+  let duration = 2;
+  for (let w=0; w<waveCount; w++){
+    osc[w].start();
+    osc[w].volume.value = -12;
+    osc[w].stop(now+duration);
+  }
+  data.forEach((v,i)=>{
+    let freq = map(v, -1, 1, 220, 880);
+    osc.forEach(o=>{
+      o.frequency.setValueAtTime(freq, now+(i/data.length)*duration);
+    });
+  });
+}
+
+// parser
+function evaluateFunction(funcText, t){
+  try{
+    let func = funcText.replace(/t/g, `(${t})`);
+    return eval(func);
+  }catch(e){ return 0; }
+}
+</script>
+
+</body>
+</html>
