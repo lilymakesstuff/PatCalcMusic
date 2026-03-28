@@ -22,18 +22,22 @@
 
 <script>
 let osc = [];
-let waveCount = 3;
-let waves = [];
+const waveCount = 3;
+const waves = [];
 
 function setup() {
-  let canvas = createCanvas(800, 300);
-  canvas.parent('canvasContainer');
+  createCanvas(800, 300).parent('canvasContainer');
   textSize(16);
   fill(255);
+  noLoop();
+  buildControls();
+}
 
-  let container = document.getElementById('waveControls');
+function buildControls() {
+  const container = document.getElementById('waveControls');
+  container.innerHTML = '';
   for (let i = 0; i < waveCount; i++) {
-    let div = document.createElement('div');
+    const div = document.createElement('div');
     div.innerHTML = `
       Wave ${i+1}:
       <input type="text" id="func${i}" value="sin(${i+1}*t)" size="15">
@@ -44,8 +48,7 @@ function setup() {
       </select>
     `;
     container.appendChild(div);
-    waves.push({func: `sin(${i+1}*t)`, mode: 'original'});
-    osc.push(new Tone.Oscillator(440, 'sine').toDestination());
+    waves[i] = { func: `sin(${i+1}*t)`, mode: 'original' };
   }
 }
 
@@ -57,15 +60,16 @@ async function playAll() {
     waves[i].mode = document.getElementById(`mode${i}`).value;
   }
 
-  let t = 0, dt = 0.02;
-  let data = [];
-  let prevRaw = Array(waveCount).fill(0);
-  let integrals = Array(waveCount).fill(0);
+  const dt = 0.02;
+  const data = [];
+  const prevRaw = Array(waveCount).fill(0);
+  const integrals = Array(waveCount).fill(0);
+  let t = 0;
 
   for (let i = 0; i < 400; i++) {
     let sum = 0;
     for (let w = 0; w < waveCount; w++) {
-      let raw = evaluateFunction(waves[w].func, t);
+      const raw = evaluateFunction(waves[w].func, t);
       let val = raw;
       if (waves[w].mode === 'derivative') {
         val = (raw - prevRaw[w]) / dt;
@@ -80,33 +84,36 @@ async function playAll() {
     t += dt;
   }
 
-  let maxVal = Math.max(...data.map(Math.abs));
-  if (maxVal === 0) maxVal = 1;
-  data = data.map(v => v / maxVal);
+  const maxVal = Math.max(...data.map(Math.abs), 1);
+  const normalized = data.map(v => v / maxVal);
 
   background(0);
   stroke(0, 255, 0);
   noFill();
   beginShape();
-  for (let i = 0; i < data.length; i++) {
-    let y = map(data[i], -1, 1, height - 20, 20);
-    vertex(map(i, 0, data.length, 0, width), y);
+  for (let i = 0; i < normalized.length; i++) {
+    const y = map(normalized[i], -1, 1, height - 20, 20);
+    vertex(map(i, 0, normalized.length, 0, width), y);
   }
   endShape();
 
-  let now = Tone.now();
-  let duration = 2;
+  osc.forEach(o => o.dispose());
+  osc = [];
+
+  const now = Tone.now();
+  const duration = 2;
+
   for (let w = 0; w < waveCount; w++) {
-    osc[w].start(now);
-    osc[w].volume.value = -12;
-    osc[w].stop(now + duration);
+    const o = new Tone.Oscillator(440, 'sine').toDestination();
+    o.volume.value = -12;
+    o.start(now);
+    o.stop(now + duration);
+    osc.push(o);
   }
 
-  data.forEach((v, i) => {
-    let freq = map(v, -1, 1, 220, 880);
-    osc.forEach(o => {
-      o.frequency.setValueAtTime(freq, now + (i / data.length) * duration);
-    });
+  normalized.forEach((v, i) => {
+    const freq = map(v, -1, 1, 220, 880);
+    osc.forEach(o => o.frequency.setValueAtTime(freq, now + (i / normalized.length) * duration));
   });
 }
 
@@ -115,9 +122,6 @@ function evaluateFunction(funcText, t) {
     const sin = Math.sin;
     const cos = Math.cos;
     const tan = Math.tan;
-    const asin = Math.asin;
-    const acos = Math.acos;
-    const atan = Math.atan;
     const sqrt = Math.sqrt;
     const abs = Math.abs;
     const log = Math.log;
@@ -125,13 +129,13 @@ function evaluateFunction(funcText, t) {
     const PI = Math.PI;
     const E = Math.E;
 
-    let func = funcText
+    const func = funcText
       .replace(/\^/g, '**')
       .replace(/\bt\b/g, `(${t})`)
       .replace(/\bpi\b/gi, 'PI');
 
-    return eval(func);
-  } catch (e) {
+    return eval(func) || 0;
+  } catch {
     return 0;
   }
 }
